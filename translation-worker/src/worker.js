@@ -2,7 +2,7 @@ require('dotenv').config();
 const {connectRabbitMQ} = require('./config/rabbitmq');
 const sequelize = require('./config/database');
 const Translation = require('./models/translation');
-const {mockTranslate} = require('./services/translationService');
+const {translate} = require('./services/translationService');
 
 const startWorker = async () => {
     try {
@@ -32,7 +32,7 @@ const startWorker = async () => {
                 try {
                     await translationRecord.update({status: 'processing'});
 
-                    const translatedText = await mockTranslate(text, targetLanguage);
+                    const translatedText = await translate(text, targetLanguage);
 
                     await translationRecord.update({status: 'completed', translatedText});
                     console.log(`[+] Translation for ${requestId} completed successfully.`);
