@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Tradução Assíncrona</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+
+        .container {
+            background-color: #fff;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            margin-bottom: 2rem;
+        }
+
+        h1, h2 {
+            color: #1a1a1a;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+
+        input[type="text"], textarea, select {
+            width: 100%;
+            padding: 0.75rem;
+            margin-bottom: 1rem;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        button {
+            display: block;
+            width: 100%;
+            padding: 0.8rem 1rem;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1.1rem;
+            font-weight: 600;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        #results {
+            background-color: #f9f9f9;
+            padding: 1.5rem;
+            border: 1px solid #eee;
+            border-radius: 5px;
+            word-wrap: break-word;
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        .status {
+            padding: 0.3rem 0.6rem;
+            border-radius: 4px;
+            font-weight: bold;
+            display: inline-block;
+        }
+
+        .status-completed {
+            color: #155724;
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status-failed {
+            color: #721c24;
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status-processing, .status-queued {
+            color: #856404;
+            background-color: #fff3cd;
+            border: 1px solid #ffeeba;
+        }
+
+        .loader {
+            display: none;
+            margin: 1rem auto;
+            border: 4px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 4px solid #3498db;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+<body>
+
+<h1>Sistema de Tradução</h1>
+
+<div class="container">
+    <h2>1. Criar Nova Tradução</h2>
+    <form id="translationForm">
+        <label for="textToTranslate">Texto a ser Traduzido:</label>
+        <textarea id="textToTranslate" required>Hello World</textarea>
+
+        <label for="targetLanguage">Traduzir para:</label>
+        <select id="targetLanguage">
+            <option value="pt">Português (pt)</option>
+            <option value="es">Espanhol (es)</option>
+            <option value="fr">Francês (fr)</option>
+        </select>
+
+        <button type="submit">Enviar Tradução</button>
+    </form>
+</div>
+
+<div class="container">
+    <h2>2. Verificar Status da Tradução</h2>
+    <form id="statusForm">
+        <label for="requestId">Request ID:</label>
+        <input type="text" id="requestId" placeholder="Cole o Request ID aqui" required>
+        <button type="submit">Verificar Status</button>
+    </form>
+    <div id="statusLoader" class="loader"></div>
+</div>
+
+<div class="container">
+    <h2>Resultados</h2>
+    <div id="results">
+        <p>Os resultados da sua requisição aparecerão aqui.</p>
+    </div>
+</div>
+
+
+<script>
+    const API_URL = 'http://localhost:3000';
+    let statusInterval = null;
+
+    const translationForm = document.getElementById('translationForm');
+    const statusForm = document.getElementById('statusForm');
+    const requestIdInput = document.getElementById('requestId');
+    const resultsDiv = document.getElementById('results');
+    const statusLoader = document.getElementById('statusLoader');
+
+    const displayResult = (data) => {
+        resultsDiv.innerHTML = `
+                <p><strong>Request ID:</strong> ${data.requestId}</p>
+                <p><strong>Status:</strong> <span class="status status-${data.status}">${data.status.toUpperCase()}</span></p>
+                <p><strong>Texto Original:</strong> ${data.originalText}</p>
+                <p><strong>Idioma de Destino:</strong> ${data.targetLanguage}</p>
+                <p><strong>Texto Traduzido:</strong> ${data.translatedText || 'N/A'}</p>
+                <p><strong>Mensagem de Erro:</strong> ${data.errorMessage || 'N/A'}</p>
+                <p><strong>Criado em:</strong> ${new Date(data.createdAt).toLocaleString()}</p>
+                <p><strong>Atualizado em:</strong> ${new Date(data.updatedAt).toLocaleString()}</p>
+            `;
+    };
+
+    const clearResults = (message) => {
+        resultsDiv.innerHTML = `<p>${message}</p>`;
+    };
+
+    const stopLoader = () => {
+        statusLoader.style.display = 'none';
+    }
+
+    const checkStatus = async (id) => {
+        if (!id) return;
+        statusLoader.style.display = 'block';
+
+        try {
+            const response = await fetch(`${API_URL}/translations/${id}`);
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Erro ao buscar status.');
+            }
+
+            displayResult(data);
+
+            if (data.status === 'completed' || data.status === 'failed') {
+                if (statusInterval) {
+                    clearInterval(statusInterval);
+                    statusInterval = null;
+                }
+                stopLoader();
+            }
+        } catch (error) {
+            clearResults(`Erro: ${error.message}`);
+            if (statusInterval) {
+                clearInterval(statusInterval);
+                statusInterval = null;
+            }
+            stopLoader();
+        }
+    };
+
+    translationForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (statusInterval) clearInterval(statusInterval);
+
+        const text = document.getElementById('textToTranslate').value.trim();
+        const targetLanguage = document.getElementById('targetLanguage').value;
+
+        if (!text) {
+            alert('Por favor, insira um texto para traduzir.');
+            return;
+        }
+
+        clearResults('Enviando requisição...');
+
+        try {
+            const response = await fetch(`${API_URL}/translations`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({text, targetLanguage}),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Falha ao enviar a requisição.');
+            }
+
+            clearResults(`Requisição enviada com sucesso! Request ID: ${data.requestId}. Verificando status...`);
+            requestIdInput.value = data.requestId;
+
+            await checkStatus(data.requestId);
+            statusInterval = setInterval(() => checkStatus(data.requestId), 2000);
+
+        } catch (error) {
+            clearResults(`Erro: ${error.message}`);
+        }
+    });
+
+    statusForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        if (statusInterval) {
+            clearInterval(statusInterval);
+            statusInterval = null;
+        }
+        const id = requestIdInput.value.trim();
+        checkStatus(id);
+    });
+
+</script>
+</body>
+</html>
