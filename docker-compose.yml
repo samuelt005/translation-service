@@ -6,12 +6,12 @@ services:
     container_name: mysql_db
     restart: always
     environment:
-      MYSQL_DATABASE: ${DB_NAME:-translations_db}
-      MYSQL_USER: ${DB_USER:-user}
-      MYSQL_PASSWORD: ${DB_PASSWORD:-password}
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
     ports:
-      - "3307:3306"
+      - "${DB_PORT_MAPPED}:${DB_PORT_INTERNAL}"
     volumes:
       - mysql-data:/var/lib/mysql
 
@@ -32,15 +32,15 @@ services:
     container_name: translation_api
     restart: always
     ports:
-      - "3000:3000"
+      - "${API_PORT}:${API_PORT}"
     environment:
-      - PORT=3000
-      - DB_HOST=mysql
-      - DB_USER=user
-      - DB_PASSWORD=password
-      - DB_NAME=translations_db
-      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
-      - QUEUE_NAME=translation_tasks
+      - PORT=${API_PORT}
+      - DB_HOST=${DB_HOST}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - RABBITMQ_URL=${RABBITMQ_URL}
+      - QUEUE_NAME=${QUEUE_NAME}
     depends_on:
       - mysql
       - rabbitmq
@@ -51,12 +51,13 @@ services:
     container_name: translation_worker
     restart: always
     environment:
-      - DB_HOST=mysql
-      - DB_USER=user
-      - DB_PASSWORD=password
-      - DB_NAME=translations_db
-      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
-      - QUEUE_NAME=translation_tasks
+      - DB_HOST=${DB_HOST}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - RABBITMQ_URL=${RABBITMQ_URL}
+      - QUEUE_NAME=${QUEUE_NAME}
+      - DEEPL_API_KEY=${DEEPL_API_KEY}
     depends_on:
       - mysql
       - rabbitmq
